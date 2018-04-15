@@ -1,74 +1,74 @@
-var dir = require('node-dir');
-var TreeModel = require('tree-model');
-var treeModel = new TreeModel();
-var _ = require('lodash');
-var fs = require('fs')
-var lineReader = require('line-reader');
+const dir = require('node-dir');
+const treeModel = function () {
+    const TreeModel = require('tree-model');
+    return new TreeModel();
+}();
+const _ = require('lodash');
+const lineReader = require('line-reader');
 const program = require('commander');
+const fs = require('fs')
+const EXCLUDED_FILES = Object.freeze(['_book', 'SUMMARY.md', 'README.md']);
 program
     .version('0.1.0')
     .option('-b, --book [book]', '', process.cwd())
     .option('-s, --summary [summary]', '', process.cwd() + '/SUMMARY.md')
     .parse(process.argv);
 
+const BASE_PATH = process.cwd();
 let bookDir = program.book;
 let summaryFilePath = program.summary;
-
-const basePath = process.cwd();
-
-if (bookDir.indexOf(basePath) === -1) {
-    bookDir = `${basePath}/${bookDir}`;
+if (bookDir.indexOf(BASE_PATH) === -1) {
+    bookDir = `${BASE_PATH}/${bookDir}`;
 }
-
-if (summaryFilePath.indexOf(basePath) === -1) {
-    summaryFilePath = `${basePath}/${summaryFilePath}`;
+if (summaryFilePath.indexOf(BASE_PATH) === -1) {
+    summaryFilePath = `${BASE_PATH}/${summaryFilePath}`;
 }
-
 bookDir = bookDir.replace(/\//g, '\\');
 summaryFilePath = summaryFilePath.replace(/\//g, '\\');
-
-console.log(bookDir)
-console.log(summaryFilePath)
-
-function getCandidateFiles(paths) {
-    return paths.files
-        .map(file => ({ isDir: false, path: file }))
-        .concat(paths.dirs.map(dir => ({ isDir: true, path: dir })))
-        .filter(item => ['_book', 'SUMMARY.md', 'README.md'].every(test => item.path.indexOf(test) === -1));
-}
-
 
 dir.paths(bookDir, function (err, paths) {
     if (err) throw err;
     const candidateFiles = getCandidateFiles(paths);
     const fileTree = transForm2Tree(candidateFiles);
     Promise.all(fileTree.all().map(revampNode))
-        .then(d => {
-            const summaryText = _.reduce(fileTree.all(), (result, current) => {
+        .then(() => {
+            const summaryLines = _.reduce(fileTree.all(), (result, current) => {
                 if (current.isRoot())
                     return result;
 
-                return result.concat(toSummarryText(current.model.data));
-            }, []).map(line => line.replace(bookDir, ''));
-            summaryText.forEach(f => {
-                console.log(f)
-            })
-            fs.writeFileSync(summaryFilePath, summaryText.join('\r'), 'utf-8');
-            console.log(`Created ${summaryFilePath}`)
+                return result.concat(toSummarryLine(current.model.data));
+            }, []);
+            console.log(summaryLines.join('\r'))
+            fs.writeFileSync(summaryFilePath, summaryLines.join('\r'), 'utf-8');
         });
 });
+
+function getCandidateFiles(paths) {
+    return paths.files
+        .map(file => ({ isDir: false, path: file }))
+        .concat(paths.dirs.map(dir => ({ isDir: true, path: dir })))
+        .filter(item => EXCLUDED_FILES.every(isNotExcludeFile(item)));
+
+    function isNotExcludeFile(item) {
+        return excludeFilePath => item.path.indexOf(excludeFilePath) === -1;
+    }
+}
+
+function toRelativePath(line) {
+    return line.replace(bookDir, '');
+}
 
 function transForm2Tree(candidateFiles) {
     let oTree = treeModel.parse({ name: 'root', children: [], data: { path: bookDir, isDir: true, level: 0 } });
     while (candidateFiles.length) {
         oTree = _.reduce(candidateFiles,
-            putBack(candidateFiles),
+            pick2Tree(candidateFiles),
             oTree)
     }
     return oTree;
 }
 
-function putBack(candidateFiles) {
+function pick2Tree(candidateFiles) {
     return (tree, current) => {
         if (!current)
             return tree;
@@ -83,14 +83,10 @@ function putBack(candidateFiles) {
     }
 }
 
-function toSummarryText(item) {
+function toSummarryLine(item) {
     const fileExpression = getFileExpression(item);
     if (item.levelTextArray && item.levelTextArray.length) {
-        return fileExpression.concat(item.levelTextArray.map((lt) => {
-            const ltTitle = titleToTitle(lt.title);
-            const summaryLine = `${toTab(item.fileLevel, lt.level + 1)}* [${ltTitle}](${convertTitleToLink(item, lt)})`;
-            return summaryLine;
-        }))
+        return fileExpression.concat(item.levelTextArray.map((lt) => `${getTab(item.fileLevel, lt.level + 1)}* [${removeSharp(lt.title)}](${getLink(item, lt)})`))
     }
     return fileExpression;
 }
@@ -99,59 +95,52 @@ function getFileExpression(item) {
     if (!item.path.endsWith('.md'))
         item.path = item.path + '.md';
 
-    const summaryLine = `${toTab(item.fileLevel)}* [${pathToTitle(item.path)}](${item.path})`;
+    const summaryLine = `${getTab(item.fileLevel)}* [${getTitle(item.path)}](${item.path})`;
     return [summaryLine];
 }
 
-function convertTitleToLink(item, lt) {
-    const link = `${item.path}#${lt.title.toLowerCase().replace(/#?/g, '').trim().replace(/\s/g, '-').replace(/[^a-z|^0-9^-]/ig, '')}`;
-    return link;
+function getLink(item, lt) {
+    return toRelativePath(`${item.path}#${lt.title.toLowerCase().replace(/#?/g, '').trim().replace(/\s/g, '-').replace(/[^a-z|^0-9^-]/ig, '')}`);
 }
 
-function toTab(fileLevel, level = 0) {
-    return _.repeat('\t', (fileLevel + level) - 1);
+function getTab(fileLevel, level = 0) {
+    return _.repeat('\t', fileLevel + level - 1);
 }
 
-function pathToTitle(path) {
+function getTitle(path) {
     return _.last(path.split('\\')).replace(/.md/, '').trim();
 }
 
-/** 
- * @param title title here 
- * */
-function titleToTitle(title) {
-    return title.replace(/#/g, '').trim();
+function removeSharp(markDownTitle) {
+    return markDownTitle.replace(/#/g, '').trim();
 }
 
 function getFileLevel(ROOT_DIR, current) {
     const relateivePath = current.path.replace(ROOT_DIR, '');
-    const level = relateivePath ? relateivePath.match(/\\/g).length : 0;
-    console.log(`>>> ${current.path} has dir level:${level}`);
-    return level;
+    return relateivePath ? relateivePath.match(/\\/g).length : 0;
 }
 
-const TITLE_REGEX = /^#*\s/;
+const MD_TITLE_REGEX = /^#*\s/;
 function revampNode(node) {
     if (node.isRoot()) return Promise.resolve();
     return new Promise((resolve, reject) => {
         if (node.model.data.isDir || !node.model.data.path.endsWith('.md') || node.model.data.path.endsWith('README.md'))
             resolve();
 
-        const fileLevel = getFileLevel(bookDir, node.model.data);
-        node.model.data.fileLevel = fileLevel;
-        let levelCount = {};
+        node.model.data.fileLevel = getFileLevel(bookDir, node.model.data);
+        const levelCounterMap = {};
         let lastLevel = 0;
         lineReader.eachLine(node.model.data.path, function (line, last) {
-            const matched = _.get(line.match(TITLE_REGEX), [0], '').trim();
-            if (matched) {
-                const level = matched.length - 1;
+            const mdTitle = _.get(line.match(MD_TITLE_REGEX), [0], '').trim();
+            if (mdTitle) {
+                const level = mdTitle.length - 1;
                 if (level < lastLevel)
-                    levelCount[lastLevel] = 0;
+                    levelCounterMap[lastLevel] = 0;
 
-                if (levelCount[level])
-                    levelCount[level].count = levelCount[level].count + 1;
+                if (levelCounterMap[level])
+                    levelCounterMap[level].count = levelCounterMap[level].count + 1;
                 else
-                    levelCount[level] = { count: 0 };
+                    levelCounterMap[level] = { count: 0 };
 
                 const levelText = { level: level, title: line };
 
@@ -165,14 +154,7 @@ function revampNode(node) {
             if (last)
                 resolve()
         })
-    }).then(() => console.log(`${node.model.data.path} is resolved`));;
-}
-
-function splitFileAndDir(file) {
-    return {
-        filename: file.split('\\').reverse()[0],
-        dir: file.substring(0, file.length - name.length - 1)
-    };
+    });
 }
 
 function isParentDir(parentPath, testPath) {
