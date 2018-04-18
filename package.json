@@ -20,7 +20,6 @@
     "commander": "^2.15.1",
     "line-reader": "^0.4.0",
     "lodash": "^4.17.5",
-    "node-dir": "^0.1.17",
-    "tree-model": "^1.0.6"
+    "node-dir": "^0.1.17"
   }
 }

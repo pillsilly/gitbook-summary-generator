@@ -1,8 +1,4 @@
 const dir = require('node-dir');
-const treeModel = function () {
-    const TreeModel = require('tree-model');
-    return new TreeModel();
-}();
 const _ = require('lodash');
 const lineReader = require('line-reader');
 const program = require('commander');
@@ -28,27 +24,47 @@ summaryFilePath = summaryFilePath.replace(/\//g, '\\');
 
 dir.paths(bookDir, function (err, paths) {
     if (err) throw err;
-    const candidateFiles = getCandidateFiles(paths);
-    const fileTree = transForm2Tree(candidateFiles);
-    Promise.all(fileTree.all().map(revampNode))
+    const candidateFiles = [{ isDir: true, path: bookDir }].concat(getCandidateFiles(paths));
+    Promise.all(candidateFiles.map(revampNode))
         .then(() => {
-            const summaryLines = _.reduce(fileTree.all(), (result, current) => {
-                if (current.isRoot())
+            const summaryLines = _.reduce(candidateFiles, (result, node) => {
+                if (isRoot(node))
                     return result;
 
-                return result.concat(toSummarryLine(current.model.data));
+                return result.concat(toSummarryLine(node));
             }, []);
             console.log(summaryLines.join('\r'))
             fs.writeFileSync(summaryFilePath, summaryLines.join('\r'), 'utf-8');
         });
 });
 
-function getCandidateFiles(paths) {
-    return paths.files
-        .map(file => ({ isDir: false, path: file }))
-        .concat(paths.dirs.map(dir => ({ isDir: true, path: dir })))
-        .filter(item => EXCLUDED_FILES.every(isNotExcludeFile(item)));
+function isRoot(node) {
+    return node.path === bookDir;
+}
 
+const set = (n, ins, arr) => [...arr.slice(0, n), ins, ...arr.slice(n)];
+
+function getCandidateFiles(paths) {
+    let files = paths.files
+        .map(file => ({ isDir: false, path: file }))
+
+    const dirs = paths.dirs.map(dir => ({ isDir: true, path: dir }));
+    dirs.forEach(dir => {
+        for (let i = 0; i < files.length; i++) {
+            if (!isParentFolder(files[i], dir))
+                continue;
+            files = set(i, dir, files);
+            break;
+        }
+
+        function isParentFolder(a, b) {
+            return ((b.isDir && !a.isDir && a.path.indexOf(b.path) > -1))
+        }
+
+    });
+    return files.filter(item => EXCLUDED_FILES.every(isNotExcludeFile(item))).sort((a, b) => {
+        return (b.isDir && !a.isDir && a.path.indexOf(b.path) > -1) ? 1 : -1;
+    })
     function isNotExcludeFile(item) {
         return excludeFilePath => item.path.indexOf(excludeFilePath) === -1;
     }
@@ -56,31 +72,6 @@ function getCandidateFiles(paths) {
 
 function toRelativePath(line) {
     return line.replace(bookDir, '');
-}
-
-function transForm2Tree(candidateFiles) {
-    let oTree = treeModel.parse({ name: 'root', children: [], data: { path: bookDir, isDir: true, level: 0 } });
-    while (candidateFiles.length) {
-        oTree = _.reduce(candidateFiles,
-            pick2Tree(candidateFiles),
-            oTree)
-    }
-    return oTree;
-}
-
-function pick2Tree(candidateFiles) {
-    return (tree, current) => {
-        if (!current)
-            return tree;
-
-        tree.walk(node => {
-            if (node.model.data.isDir && isParentDir(node.model.data.path, current.path)) {
-                node.addChild(treeModel.parse({ name: current.path, data: { path: current.path, isDir: current.isDir } }))
-                _.pull(candidateFiles, current);
-            }
-        });
-        return tree;
-    }
 }
 
 function toSummarryLine(item) {
@@ -122,15 +113,17 @@ function getFileLevel(ROOT_DIR, current) {
 
 const MD_TITLE_REGEX = /^#*\s/;
 function revampNode(node) {
-    if (node.isRoot()) return Promise.resolve();
+    if (isRoot(node))
+        return Promise.resolve();
+
     return new Promise((resolve, reject) => {
-        if (node.model.data.isDir || !node.model.data.path.endsWith('.md') || node.model.data.path.endsWith('README.md'))
+        if (node.isDir || !node.path.endsWith('.md') || node.path.endsWith('README.md'))
             resolve();
 
-        node.model.data.fileLevel = getFileLevel(bookDir, node.model.data);
+        node.fileLevel = getFileLevel(bookDir, node);
         const levelCounterMap = {};
         let lastLevel = 0;
-        lineReader.eachLine(node.model.data.path, function (line, last) {
+        lineReader.eachLine(node.path, function (line, last) {
             const mdTitle = _.get(line.match(MD_TITLE_REGEX), [0], '').trim();
             if (mdTitle) {
                 const level = mdTitle.length - 1;
@@ -144,10 +137,10 @@ function revampNode(node) {
 
                 const levelText = { level: level, title: line };
 
-                if (node.model.data.levelTextArray)
-                    node.model.data.levelTextArray.push(levelText);
+                if (node.levelTextArray)
+                    node.levelTextArray.push(levelText);
                 else
-                    node.model.data.levelTextArray = [levelText];
+                    node.levelTextArray = [levelText];
 
                 lastLevel = level;
             }
