@@ -4,6 +4,8 @@ const lineReader = require('line-reader');
 const program = require('commander');
 const fs = require('fs')
 const EXCLUDED_FILES = Object.freeze(['_book', 'SUMMARY.md', 'README.md']);
+const COMMON_SEP = '/';
+const WIN_SEP_REGEX = /\\/g;
 program
     .version('0.1.0')
     .option('-b, --book [book]', '', process.cwd())
@@ -11,17 +13,15 @@ program
     .option('-t, --title [title]', '', 'Your Book Title')
     .parse(process.argv);
 
-const BASE_PATH = process.cwd();
-let bookDir = program.book;
-let summaryFilePath = program.summary;
+const BASE_PATH = unifySep(process.cwd());
+let bookDir = unifySep(program.book);
+let summaryFilePath = unifySep(program.summary);
 if (bookDir.indexOf(BASE_PATH) === -1) {
     bookDir = `${BASE_PATH}/${bookDir}`;
 }
 if (summaryFilePath.indexOf(BASE_PATH) === -1) {
     summaryFilePath = `${BASE_PATH}/${summaryFilePath}`;
 }
-bookDir = bookDir.replace(/\//g, '\\');
-summaryFilePath = summaryFilePath.replace(/\//g, '\\');
 
 dir.paths(bookDir, function (err, paths) {
     if (err) throw err;
@@ -49,18 +49,20 @@ function isRoot(node) {
     return node.path === bookDir;
 }
 
-const set = (n, ins, arr) => [...arr.slice(0, n), ins, ...arr.slice(n)];
+function insert(n, ins, arr) {
+    return [...arr.slice(0, n), ins, ...arr.slice(n)];
+}
 
 function getCandidateFiles(paths) {
     let files = paths.files
-        .map(file => ({ isDir: false, path: file }))
+        .map(file => ({ isDir: false, path: unifySep(file) }))
 
-    const dirs = paths.dirs.map(dir => ({ isDir: true, path: dir }));
+    const dirs = paths.dirs.map(dir => ({ isDir: true, path: unifySep(dir) }));
     dirs.forEach(dir => {
         for (let i = 0; i < files.length; i++) {
             if (!isParentFolder(files[i], dir))
                 continue;
-            files = set(i, dir, files);
+            files = insert(i, dir, files);
             break;
         }
 
@@ -109,7 +111,7 @@ function getTab(fileLevel, level = 0) {
 }
 
 function getTitle(path) {
-    return _.last(path.split('\\')).replace(/.md/, '').trim();
+    return _.last(path.split(COMMON_SEP)).replace(/.md/, '').trim();
 }
 
 function removeSharp(markDownTitle) {
@@ -118,7 +120,8 @@ function removeSharp(markDownTitle) {
 
 function getFileLevel(ROOT_DIR, current) {
     const relateivePath = current.path.replace(ROOT_DIR, '');
-    return relateivePath ? relateivePath.match(/\\/g).length : 0;
+    return relateivePath ? relateivePath.match(new RegExp(COMMON_SEP, 'g')).length : 0;
+
 }
 
 const MD_TITLE_REGEX = /^#*\s/;
@@ -160,9 +163,13 @@ function revampNode(node) {
     });
 }
 
+function unifySep(path) {
+    return path.replace(WIN_SEP_REGEX, COMMON_SEP);
+}
+
 function isParentDir(parentPath, testPath) {
-    const t = testPath.split('\\');
+    const t = testPath.split(COMMON_SEP);
     t.pop();
-    const currentPath = t.join('\\');
+    const currentPath = t.join(COMMON_SEP);
     return currentPath === parentPath
 }
