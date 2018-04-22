@@ -8,6 +8,7 @@ program
     .version('0.1.0')
     .option('-b, --book [book]', '', process.cwd())
     .option('-s, --summary [summary]', '', process.cwd() + '/SUMMARY.md')
+    .option('-t, --title [title]', '', 'Your Book Title')
     .parse(process.argv);
 
 const BASE_PATH = process.cwd();
@@ -27,6 +28,7 @@ dir.paths(bookDir, function (err, paths) {
     const candidateFiles = [{ isDir: true, path: bookDir }].concat(getCandidateFiles(paths));
     Promise.all(candidateFiles.map(revampNode))
         .then(() => {
+            console.log(JSON.stringify(candidateFiles));
             const summaryLines = _.reduce(candidateFiles, (result, node) => {
                 if (isRoot(node))
                     return result;
@@ -34,9 +36,14 @@ dir.paths(bookDir, function (err, paths) {
                 return result.concat(toSummarryLine(node));
             }, []);
             console.log(summaryLines.join('\r'))
-            fs.writeFileSync(summaryFilePath, summaryLines.join('\r'), 'utf-8');
+            fs.writeFileSync(summaryFilePath, generateTitle() + summaryLines.join('\r'), 'utf-8');
         });
 });
+
+
+function generateTitle() {
+    return `# ${program.title}\r\r`;
+}
 
 function isRoot(node) {
     return node.path === bookDir;
@@ -77,17 +84,20 @@ function toRelativePath(line) {
 function toSummarryLine(item) {
     const fileExpression = getFileExpression(item);
     if (item.levelTextArray && item.levelTextArray.length) {
-        return fileExpression.concat(item.levelTextArray.map((lt) => `${getTab(item.fileLevel, lt.level + 1)}* [${removeSharp(lt.title)}](${getLink(item, lt)})`))
+        return fileExpression.concat(item.levelTextArray.map((lt) => `${getTab(item.fileLevel, lt.level)}* [${removeSharp(lt.title)}](${getLink(item, lt)})`))
     }
     return fileExpression;
 }
 
 function getFileExpression(item) {
-    if (!item.path.endsWith('.md'))
-        item.path = item.path + '.md';
+    if (item.isDir)
+        return [`${getTab(item.fileLevel)}- ${getTitle(item.path)}`];
 
-    const summaryLine = `${getTab(item.fileLevel)}* [${getTitle(item.path)}](${item.path})`;
-    return [summaryLine];
+    if (!item.isDir && item.path.endsWith('.md'))
+        return [`${getTab(item.fileLevel)}* [${getTitle(item.path)}](${toRelativePath(item.path)})`];
+
+    console.warn(`Unexpected item ${JSON.stringify(item)}`);
+    return [''];
 }
 
 function getLink(item, lt) {

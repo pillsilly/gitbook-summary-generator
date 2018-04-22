@@ -1,6 +1,4 @@
-.vscode
 node_modules
-.gitignore
 example/_book
 test2.md
 example/README.md
