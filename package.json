@@ -2,7 +2,7 @@
   "name": "gitbook-summary-generator",
   "version": "1.0.0",
   "description": "Generate gitbook summary",
-  "main": "index.js",
+  "main": "./src/GitBookSummaryGenerator.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -17,11 +17,14 @@
   },
   "homepage": "https://github.com/pillsilly/gitbook-summary-generator#readme",
   "dependencies": {
+    "bluebird": "^3.5.1",
     "commander": "^2.15.1",
     "del": "^3.0.0",
+    "express": "^4.16.3",
     "gitbook": "^3.2.3",
     "gulp": "^4.0.0",
     "gulp-gitbook": "0.0.2",
+    "gulp-watch": "^5.0.0",
     "line-reader": "^0.4.0",
     "lodash": "^4.17.5",
     "node-dir": "^0.1.17"

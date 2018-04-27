@@ -5,8 +5,10 @@ const fs = require('fs')
 const EXCLUDED_FILES = Object.freeze(['_book', 'SUMMARY.md', 'README.md']);
 const COMMON_SEP = '/';
 const WIN_SEP_REGEX = /\\/g;
+const MD_TITLE_REGEX = /^#*\s/;
 
-GitBookSummaryGenerator = function ({ book, summary, title }) {
+GitBookSummaryGenerator = function ({ book, summary, title = 'This is your book title' }) {
+
     const BASE_PATH = unifySep(process.cwd());
     let bookDir = unifySep(book);
     let summaryFilePath = unifySep(summary);
@@ -17,23 +19,20 @@ GitBookSummaryGenerator = function ({ book, summary, title }) {
         summaryFilePath = `${BASE_PATH}/${summaryFilePath}`;
     }
 
-    dir.paths(bookDir, function (err, paths) {
-        if (err) throw err;
-        const candidateFiles = [{ isDir: true, path: bookDir }].concat(getCandidateFiles(paths));
-        Promise.all(candidateFiles.map(revampNode))
-            .then(() => {
-                console.log(JSON.stringify(candidateFiles));
-                const summaryLines = _.reduce(candidateFiles, (result, node) => {
-                    if (isRoot(node))
-                        return result;
+    const paths = dir.files(bookDir, 'all', () => { }, { sync: true });
+    const candidateFiles = [{ isDir: true, path: bookDir }].concat(getCandidateFiles(paths));
+    return Promise.all(candidateFiles.map(revampNode))
+        .then(() => {
+            console.log(JSON.stringify(candidateFiles));
+            const summaryLines = _.reduce(candidateFiles, (result, node) => {
+                if (isRoot(node))
+                    return result;
 
-                    return result.concat(toSummarryLine(node));
-                }, []);
-                console.log(summaryLines.join('\r'))
-                fs.writeFileSync(summaryFilePath, generateTitle() + summaryLines.join('\r'), 'utf-8');
-            });
-    });
-
+                return result.concat(toSummarryLine(node));
+            }, []);
+            console.log(summaryLines.join('\r'))
+            fs.writeFileSync(summaryFilePath, generateTitle() + summaryLines.join('\r'), 'utf-8');
+        })
 
     function generateTitle() {
         return `# ${title}\r\r`;
@@ -118,7 +117,7 @@ GitBookSummaryGenerator = function ({ book, summary, title }) {
 
     }
 
-    const MD_TITLE_REGEX = /^#*\s/;
+
     function revampNode(node) {
         if (isRoot(node))
             return Promise.resolve();
@@ -169,4 +168,5 @@ GitBookSummaryGenerator = function ({ book, summary, title }) {
     }
 }
 
-module.exports.newInstance = GitBookSummaryGenerator;
+
+module.exports.execute = GitBookSummaryGenerator;
