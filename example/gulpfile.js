@@ -1,5 +1,5 @@
 var gulp = require('gulp');
-var execute = require('./src/GitBookSummaryGenerator').execute;
+var execute = require('gitbook-summary-generator').execute;
 gulp.task('default', function () {
     console.log('Hello world.');
 });
@@ -8,25 +8,25 @@ var gulpGitbook = require('gulp-gitbook');
 var del = require('del')
 
 function clean(cb) {
-    return del(['./example/_book']);
+    return del(['./book/_book']);
 }
 
 const build = function (done = () => { }) {
-    return execute({ book: 'example', summary: 'example/SUMMARY.md' })
-        .then(() => new Promise(resolve => gulpGitbook('example/', resolve)));
+    return execute({ book: 'book', summary: 'book/SUMMARY.md' })
+        .then(() => new Promise(resolve => gulpGitbook('book/', resolve)));
 }
 
 const serve = function (done) {
-    gulpGitbook.serve('example', done);
+    gulpGitbook.serve('book', done);
 }
 
 const serve2 = function (a) {
     var express = require('express')
     var app = express()
-    app.use(express.static('example'))
+    app.use(express.static('book'))
     const server = app.listen(3000);
 
-    const stream = gulp.watch('example/**/*.md', { ignored: 'example/_book/*' }).on('change', function (path, stats) {
+    const stream = gulp.watch('book/**/*.md', { ignored: 'book/_book/*' }).on('change', function (path, stats) {
         console.log('File ' + path + ' was changed');
         stream.close();
         server.close();
