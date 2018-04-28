@@ -1,5 +1,6 @@
-//This file shows how to call from node js application
+//here it shows how it can be used directly in nodejs
 const execute = require('gitbook-summary-generator').execute;
-execute({ book: 'example', summary: 'example/SUMMARY.md' }).then(() => {
-    console.log('finished')
-});
+execute({ book: 'book', summary: 'book/SUMMARY.md' })
+    .then(() => {
+        console.log('finished')
+    });

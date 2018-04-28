@@ -1,51 +1,42 @@
-var gulp = require('gulp');
-var execute = require('gitbook-summary-generator').execute;
-gulp.task('default', function () {
-    console.log('Hello world.');
-});
+// here it shows how it can be use in gulp.
+const gulp = require('gulp');
+const execute = require('gitbook-summary-generator').execute;
+const gulpGitbook = require('gulp-gitbook');
+const del = require('del')
 
-var gulpGitbook = require('gulp-gitbook');
-var del = require('del')
+const BOOK_DIR = 'book';
 
 function clean(cb) {
-    return del(['./book/_book']);
+    return del([`./${BOOK_DIR}/_book`]);
 }
 
-const build = function (done = () => { }) {
-    return execute({ book: 'book', summary: 'book/SUMMARY.md' })
-        .then(() => new Promise(resolve => gulpGitbook('book/', resolve)));
+function build() {
+    return execute({ book: BOOK_DIR, summary: `${BOOK_DIR}/SUMMARY.md` })
+        .then(() => new Promise(resolve => gulpGitbook(`${BOOK_DIR}/`, resolve)));
 }
 
-const serve = function (done) {
-    gulpGitbook.serve('book', done);
-}
-
-const serve2 = function (a) {
-    var express = require('express')
-    var app = express()
-    app.use(express.static('book'))
+function serve(done = () => { }) {
+    const express = require('express')
+    const app = express()
+    app.use(express.static(`${BOOK_DIR}`))
     const server = app.listen(3000);
-
-    const stream = gulp.watch('book/**/*.md', { ignored: 'book/_book/*' }).on('change', function (path, stats) {
-        console.log('File ' + path + ' was changed');
+    const stream = gulp.watch(`${BOOK_DIR}/**/*.md`, { ignored: `${BOOK_DIR}/_book/*` }).on('change', function (path, stats) {
+        console.info('File ' + path + ' was changed');
         stream.close();
+        console.info('stream closed');
         server.close();
+        console.info('server closed');
         clean()
             .then(build)
-            .then(() => {
-                setTimeout(serve2, 3000);
-            });
+            .then(serve);
     });
+    done();
 }
-exports.clean = clean;
-exports.build = build;
-exports.serve = serve;
-exports.serve2 = serve2;
-gulp.task('serve2', serve2);
-gulp.task('serve', serve);
 
-
-const run = gulp.series(clean, build, serve2);
-
-gulp.task('run', run);
+gulp.task('default', function (done) {
+    console.log('Gulp CLI works');
+    done();
+});
 gulp.task('build', build);
+gulp.task('serve', serve);
+gulp.task('run', gulp.series(clean, build, serve));
