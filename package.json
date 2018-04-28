@@ -2,7 +2,7 @@
   "name": "gitbook-summary-generator",
   "version": "1.0.0",
   "description": "Generate gitbook summary",
-  "main": "index.js",
+  "main": "./src/GitBookSummaryGenerator.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -10,7 +10,7 @@
     "type": "git",
     "url": "git+https://github.com/pillsilly/gitbook-summary-generator.git"
   },
-  "author": "",
+  "author": "Frank Wu",
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/pillsilly/gitbook-summary-generator/issues"
@@ -19,13 +19,14 @@
   "dependencies": {
     "commander": "^2.15.1",
     "del": "^3.0.0",
-    "gitbook": "^3.2.3",
-    "gulp": "^4.0.0",
-    "gulp-gitbook": "0.0.2",
     "line-reader": "^0.4.0",
-    "lodash": "^4.17.5",
+    "lodash": "^4.17.10",
     "node-dir": "^0.1.17"
   },
+  "files": [
+    "bin",
+    "src"
+  ],
   "bin": {
     "gitbook-summary-gen": "./src/cli.js"
   }
