@@ -6,12 +6,17 @@ const EXCLUDED_FILES = Object.freeze(['_book', 'SUMMARY.md', 'README.md']);
 const COMMON_SEP = '/';
 const WIN_SEP_REGEX = /\\/g;
 const MD_TITLE_REGEX = /^#*\s/;
-
-GitBookSummaryGenerator = function ({ book, summary, title = 'This is your book title' }) {
+const DEFAULT_TITLE = 'This is your book title';
+/**
+ * @param  {} {book
+ * @param  {} summary
+ * @param  {} title='Thisisyourbooktitle'}
+ */
+module.exports.execute = function ({ book, summary, title = DEFAULT_TITLE }) {
 
     const BASE_PATH = unifySep(process.cwd());
     let bookDir = unifySep(book);
-    let summaryFilePath = unifySep(summary);
+    let summaryFilePath = unifySep(`${book}/${summary}`);
     if (bookDir.indexOf(BASE_PATH) === -1) {
         bookDir = `${BASE_PATH}/${bookDir}`;
     }
@@ -19,19 +24,23 @@ GitBookSummaryGenerator = function ({ book, summary, title = 'This is your book 
         summaryFilePath = `${BASE_PATH}/${summaryFilePath}`;
     }
 
-    const paths = dir.files(bookDir, 'all', () => { }, { sync: true });
+    summaryFilePath = unionBackSlash(summaryFilePath);
+
+    const paths = dir.files(bookDir, 'all', () => {
+        console.log(1)
+    }, { sync: true });
     const candidateFiles = [{ isDir: true, path: bookDir }].concat(getCandidateFiles(paths));
     return Promise.all(candidateFiles.map(revampNode))
         .then(() => {
-            console.log(JSON.stringify(candidateFiles));
             const summaryLines = _.reduce(candidateFiles, (result, node) => {
-                if (isRoot(node))
+                if (isRoot(node) || node.isEmpty)
                     return result;
 
                 return result.concat(toSummarryLine(node));
-            }, []);
+            }, []).filter(line => !!line);
             console.log(summaryLines.join('\r'))
             fs.writeFileSync(summaryFilePath, generateTitle() + summaryLines.join('\r'), 'utf-8');
+            return summaryFilePath;
         })
 
     function generateTitle() {
@@ -64,7 +73,7 @@ GitBookSummaryGenerator = function ({ book, summary, title = 'This is your book 
             }
 
         });
-        return files.filter(item => EXCLUDED_FILES.every(isNotExcludeFile(item))).sort((a, b) => {
+        return files.filter(item => (item.path.endsWith('.md') || item.isDir) && EXCLUDED_FILES.every(isNotExcludeFile(item))).sort((a, b) => {
             return (b.isDir && !a.isDir && a.path.indexOf(b.path) > -1) ? 1 : -1;
         })
         function isNotExcludeFile(item) {
@@ -86,7 +95,7 @@ GitBookSummaryGenerator = function ({ book, summary, title = 'This is your book 
 
     function getFileExpression(item) {
         if (item.isDir)
-            return [`${getTab(item.fileLevel)}- ${getTitle(item.path)}`];
+            return [`${getTab(item.fileLevel)}* [${getTitle(item.path)}](${getFirstChildMD(item)})`];
 
         if (!item.isDir && item.path.endsWith('.md'))
             return [`${getTab(item.fileLevel)}* [${getTitle(item.path)}](${toRelativePath(item.path)})`];
@@ -95,12 +104,16 @@ GitBookSummaryGenerator = function ({ book, summary, title = 'This is your book 
         return [''];
     }
 
+    function getFirstChildMD(item) {
+        return '';
+    }
+
     function getLink(item, lt) {
         return toRelativePath(`${item.path}#${lt.title.toLowerCase().replace(/#?/g, '').trim().replace(/\s/g, '-').replace(/[^a-z|^0-9^-]/ig, '')}`);
     }
 
     function getTab(fileLevel, level = 0) {
-        return _.repeat('\t', fileLevel + level - 1);
+        return _.repeat('  ', fileLevel + level - 1);
     }
 
     function getTitle(path) {
@@ -116,7 +129,6 @@ GitBookSummaryGenerator = function ({ book, summary, title = 'This is your book 
         return relateivePath ? relateivePath.match(new RegExp(COMMON_SEP, 'g')).length : 0;
 
     }
-
 
     function revampNode(node) {
         if (isRoot(node))
@@ -150,23 +162,35 @@ GitBookSummaryGenerator = function ({ book, summary, title = 'This is your book 
 
                     lastLevel = level;
                 }
-                if (last)
-                    resolve()
+            }, function (a, b, c) {
+                if (!node.isDir && !node.levelTextArray)
+                    node.isEmpty = true;
+
+                resolve();
             })
         });
     }
-
-    function unifySep(path) {
-        return path && path.replace(WIN_SEP_REGEX, COMMON_SEP);
-    }
-
-    function isParentDir(parentPath, testPath) {
-        const t = testPath.split(COMMON_SEP);
-        t.pop();
-        const currentPath = t.join(COMMON_SEP);
-        return currentPath === parentPath
-    }
 }
 
+function unionBackSlash(path) {
+    if (path.indexOf('//') === -1)
+        return path;
 
-module.exports.execute = GitBookSummaryGenerator;
+    path = path.replace('//', '/');
+    return unionBackSlash(path);
+}
+
+function isParentDir(parentPath, testPath) {
+    const t = testPath.split(COMMON_SEP);
+    t.pop();
+    const currentPath = t.join(COMMON_SEP);
+    return currentPath === parentPath
+}
+function unifySep(path) {
+    return path && path.replace(WIN_SEP_REGEX, COMMON_SEP);
+}
+
+module.exports.unifySep = unifySep;
+module.exports.CONST = {
+    DEFAULT_TITLE
+};
