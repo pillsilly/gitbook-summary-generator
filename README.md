@@ -26,7 +26,7 @@ execute({ book: 'book', summary: 'book/SUMMARY.md' })
     });
 ```
 
-- Use it in command line
+- Use it in command line as a gitbook server
 
 ```bash
 gitbook-summary-gen --book book --title titleGenByCLI
