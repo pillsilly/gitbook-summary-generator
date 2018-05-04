@@ -16,14 +16,18 @@ See `/example/book/SUMMARY.md`
 
 ## Usage
 
-- Use it in gulp
-
-`/example/gulpfile.js`
-
 - Use it in js code
 
-`/example/GenExample.js`
+```javascript
+const execute = require('gitbook-summary-generator').execute;
+execute({ book: 'book', summary: 'book/SUMMARY.md' })
+    .then(() => {
+        console.log('finished')
+    });
+```
 
 - Use it in command line
 
-`/example/cliExample.sh`
+```bash
+gitbook-summary-gen --book book --title titleGenByCLI
+```
