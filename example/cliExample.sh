@@ -1,1 +1,0 @@
-gitbook-summary-gen --book book --title titleGenByCLI
