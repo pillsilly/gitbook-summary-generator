@@ -2,7 +2,7 @@ const dir = require('node-dir');
 const _ = require('lodash');
 const lineReader = require('line-reader');
 const fs = require('fs')
-const EXCLUDED_FILES = Object.freeze(['_book', 'SUMMARY.md', 'README.md']);
+const EXCLUDED_FILES = ['_book', 'SUMMARY.md', 'README.md', '.git', '.vscode'];
 const COMMON_SEP = '/';
 const WIN_SEP_REGEX = /\\/g;
 const MD_TITLE_REGEX = /^#*\s/;
@@ -12,8 +12,8 @@ const DEFAULT_TITLE = 'This is your book title';
  * @param  {} summary
  * @param  {} title='Thisisyourbooktitle'}
  */
-module.exports.execute = function ({ book, summary, title = DEFAULT_TITLE }) {
-
+module.exports.execute = function ({ book, summary, title = DEFAULT_TITLE, exclude = [] }) {
+    exclude = exclude.concat(EXCLUDED_FILES);
     const BASE_PATH = unifySep(process.cwd());
     let bookDir = unifySep(book);
     let summaryFilePath = unifySep(`${book}/${summary}`);
@@ -26,9 +26,7 @@ module.exports.execute = function ({ book, summary, title = DEFAULT_TITLE }) {
 
     summaryFilePath = unionBackSlash(summaryFilePath);
 
-    const paths = dir.files(bookDir, 'all', () => {
-        console.log(1)
-    }, { sync: true });
+    const paths = dir.files(bookDir, 'all', _.noop, { sync: true });
     const candidateFiles = [{ isDir: true, path: bookDir }].concat(getCandidateFiles(paths));
     return Promise.all(candidateFiles.map(revampNode))
         .then(() => {
@@ -71,11 +69,12 @@ module.exports.execute = function ({ book, summary, title = DEFAULT_TITLE }) {
             function isParentFolder(a, b) {
                 return ((b.isDir && !a.isDir && a.path.indexOf(b.path) > -1))
             }
-
         });
-        return files.filter(item => (item.path.endsWith('.md') || item.isDir) && EXCLUDED_FILES.every(isNotExcludeFile(item))).sort((a, b) => {
-            return (b.isDir && !a.isDir && a.path.indexOf(b.path) > -1) ? 1 : -1;
-        })
+
+        return files
+            .filter(item => (item.path.endsWith('.md') || item.isDir) && exclude.every(isNotExcludeFile(item)))
+            .sort((a, b) => (b.isDir && !a.isDir && a.path.indexOf(b.path) > -1) ? 1 : -1)
+
         function isNotExcludeFile(item) {
             return excludeFilePath => item.path.indexOf(excludeFilePath) === -1;
         }
@@ -85,23 +84,32 @@ module.exports.execute = function ({ book, summary, title = DEFAULT_TITLE }) {
         return line.replace(bookDir, '');
     }
 
-    function toSummarryLine(item) {
-        const fileExpression = getFileExpression(item);
-        if (item.levelTextArray && item.levelTextArray.length) {
-            return fileExpression.concat(item.levelTextArray.map((lt) => `${getTab(item.fileLevel, lt.level)}* [${removeSharp(lt.title)}](${getLink(item, lt)})`))
+    function toSummarryLine(fileItem) {
+        let fileExpression = getFileMenu(fileItem);
+        fileExpression = addTitleMenu(fileItem, fileExpression);
+        return fileExpression;
+    }
+
+    function addTitleMenu(fileItem, fileExpression) {
+        if (fileItem.levelTextArray && fileItem.levelTextArray.length) {
+            fileExpression = fileExpression.concat(fileItem.levelTextArray.map((lt) => `${getTab(fileItem.fileLevel + 1, lt.level)}* [${removeSharp(lt.title)}](${getLink(fileItem, lt)})`))
         }
         return fileExpression;
     }
 
-    function getFileExpression(item) {
+    function getFileMenu(item) {
         if (item.isDir)
-            return [`${getTab(item.fileLevel)}* [${getTitle(item.path)}](${getFirstChildMD(item)})`];
+            return [`${getTab(item.fileLevel)}- ${getTitle(item.path)}`];
 
-        if (!item.isDir && item.path.endsWith('.md'))
+        if (isMdFile(item))
             return [`${getTab(item.fileLevel)}* [${getTitle(item.path)}](${toRelativePath(item.path)})`];
 
         console.warn(`Unexpected item ${JSON.stringify(item)}`);
         return [''];
+
+        function isMdFile(item) {
+            return !item.isDir && item.path.endsWith('.md');
+        }
     }
 
     function getFirstChildMD(item) {
@@ -113,7 +121,7 @@ module.exports.execute = function ({ book, summary, title = DEFAULT_TITLE }) {
     }
 
     function getTab(fileLevel, level = 0) {
-        return _.repeat('  ', fileLevel + level - 1);
+        return _.repeat('   ', fileLevel + level - 1);
     }
 
     function getTitle(path) {
@@ -135,8 +143,16 @@ module.exports.execute = function ({ book, summary, title = DEFAULT_TITLE }) {
             return Promise.resolve();
 
         return new Promise((resolve, reject) => {
-            if (node.isDir || !node.path.endsWith('.md') || node.path.endsWith('README.md'))
+            if (node.isDir || !node.path.endsWith('.md') || node.path.endsWith('README.md')) {
                 resolve();
+                return
+            }
+
+            if (node.isDir && hasNoAvailabelMD(node)) {
+                node.isEmpty = true;
+                return;
+            }
+
 
             node.fileLevel = getFileLevel(bookDir, node);
             const levelCounterMap = {};
