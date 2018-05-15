@@ -28,7 +28,7 @@
                 "--book",
                 "test/resource/runtime",
                 "--exclude",
-                "part1,part2"
+                ""
             ]
         },
         {

@@ -36,9 +36,7 @@ function buildBook() {
 
 function buildSummary() {
     console.log(`exclude is: ${exclude}`);
-    if (exclude) {
-        exclude = exclude.split(',');
-    }
+    exclude = exclude.split(',') || [];
     return execute({ book: BOOK_DIR, summary: `SUMMARY.md`, title: program.title, exclude });
 }
 

@@ -7,12 +7,14 @@ const COMMON_SEP = '/';
 const WIN_SEP_REGEX = /\\/g;
 const MD_TITLE_REGEX = /^#*\s/;
 const DEFAULT_TITLE = 'This is your book title';
+
 /**
  * @param  {} {book
  * @param  {} summary
- * @param  {} title='Thisisyourbooktitle'}
+ * @param  {} title=DEFAULT_TITLE
+ * @param  {} exclude=[]}
  */
-module.exports.execute = function ({ book, summary, title = DEFAULT_TITLE, exclude = [] }) {
+function execute({ book, summary, title = DEFAULT_TITLE, exclude = [] }) {
     exclude = exclude.concat(EXCLUDED_FILES);
     const BASE_PATH = unifySep(process.cwd());
     let bookDir = unifySep(book);
@@ -206,7 +208,8 @@ function unifySep(path) {
     return path && path.replace(WIN_SEP_REGEX, COMMON_SEP);
 }
 
-module.exports.unifySep = unifySep;
-module.exports.CONST = {
-    DEFAULT_TITLE
+module.exports = {
+    execute,
+    unifySep,
+    CONST: { DEFAULT_TITLE }
 };
