@@ -1,6 +1,6 @@
 {
   "name": "gitbook-summary-generator",
-  "version": "1.0.1",
+  "version": "v0.0.1",
   "description": "Generate gitbook summary",
   "main": "./src/GitBookSummaryGenerator.js",
   "scripts": {
